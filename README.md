@@ -1,0 +1,75 @@
+# Claude Usage Systray
+
+A lightweight macOS menu bar app that shows your [Claude.ai](https://claude.ai) plan usage in real time — current session and weekly limits — without opening a browser.
+
+![Menu bar showing 35% · 71%](https://img.shields.io/badge/menu%20bar-35%25%20%C2%B7%2071%25-blue)
+
+## What it shows
+
+Mirrors the data on `claude.ai/settings/usage`:
+
+| Metric | Description |
+|--------|-------------|
+| **5h** | Current session usage (resets every ~5 hours) |
+| **7d** | Weekly all-models usage |
+| **Sonnet** | Weekly Sonnet-only usage (shown in popover) |
+
+Colors update based on your configured warning/critical thresholds.
+
+## Requirements
+
+- macOS 13+
+- [Claude Code](https://claude.ai/code) installed and logged in (the app reads its OAuth token from your Keychain — no separate credentials needed)
+
+## Installation
+
+```bash
+git clone https://github.com/YOUR_USERNAME/claude-usage-systray
+cd claude-usage-systray/claude-usage-systray
+xcodebuild -scheme ClaudeUsageSystray -configuration Release build
+open ~/Library/Developer/Xcode/DerivedData/ClaudeUsageSystray-*/Build/Products/Release/ClaudeUsageSystray.app
+```
+
+Or open `ClaudeUsageSystray.xcodeproj` in Xcode and run with ⌘R.
+
+## Display modes
+
+Toggle **Compact display** in Settings to switch between:
+
+- **Compact (default):** `35% · 71%` — both 5h and 7d inline, each colored by threshold
+- **Normal:** icon + `71%` — weekly usage only
+
+## How it works
+
+The app reads your Claude Code OAuth token from the macOS Keychain (`Claude Code-credentials`) and calls the same internal endpoint that powers `claude.ai/settings/usage`:
+
+```
+GET https://api.anthropic.com/api/oauth/usage
+Authorization: Bearer <oauth_token>
+anthropic-beta: oauth-2025-04-20
+```
+
+The token is read once at startup and cached in memory. It refreshes automatically when you restart the app (Claude Code keeps it current in the Keychain).
+
+> **Note:** This endpoint is undocumented and may change. It requires Claude Code to be installed and logged in.
+
+## Settings
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| Compact display | On | Show both 5h and 7d in menu bar |
+| Warning threshold | 80% | Orange color above this |
+| Critical threshold | 90% | Red color above this |
+| Usage alerts | On | macOS notification when thresholds are crossed |
+
+## Running tests
+
+```bash
+xcodebuild test -project ClaudeUsageSystray.xcodeproj \
+  -scheme ClaudeUsageSystrayTests \
+  -destination 'platform=macOS'
+```
+
+## License
+
+MIT
