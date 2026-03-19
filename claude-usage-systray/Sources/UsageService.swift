@@ -89,7 +89,8 @@ final class UsageService: ObservableObject {
     @Published private(set) var weeklyTokens: Int = 0
 
     private var refreshTimer: Timer?
-    private let refreshInterval: TimeInterval = 60
+    private let normalInterval: TimeInterval = 5 * 60   // 5 minutes
+    private let backoffInterval: TimeInterval = 15 * 60 // 15 minutes after 429
 
     // Injectable for testing
     var urlSession: URLSession = .shared
@@ -107,14 +108,19 @@ final class UsageService: ObservableObject {
 
     func startPolling() {
         fetchUsage()
-        refreshTimer = Timer.scheduledTimer(withTimeInterval: refreshInterval, repeats: true) { [weak self] _ in
-            self?.fetchUsage()
-        }
+        scheduleTimer(interval: normalInterval)
     }
 
     func stopPolling() {
         refreshTimer?.invalidate()
         refreshTimer = nil
+    }
+
+    private func scheduleTimer(interval: TimeInterval) {
+        refreshTimer?.invalidate()
+        refreshTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: false) { [weak self] _ in
+            self?.fetchUsage()
+        }
     }
 
     func fetchUsage() {
@@ -148,10 +154,20 @@ final class UsageService: ObservableObject {
                     self.currentUsage = snapshot
                     self.error = nil
                     self.isLoading = false
+                    self.scheduleTimer(interval: self.normalInterval)
                 }
-            } catch {
+            } catch let error as NSError {
+                let isRateLimit = error.code == 429
                 await MainActor.run {
-                    self.error = error.localizedDescription
+                    if isRateLimit {
+                        // Clear token so next attempt re-reads a potentially refreshed token from Keychain
+                        self.cachedToken = nil
+                        self.error = "Rate limited — retrying in 15 min"
+                        self.scheduleTimer(interval: self.backoffInterval)
+                    } else {
+                        self.error = error.localizedDescription
+                        self.scheduleTimer(interval: self.normalInterval)
+                    }
                     self.isLoading = false
                 }
             }
