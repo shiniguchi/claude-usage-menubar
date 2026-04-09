@@ -96,16 +96,7 @@ final class UsageService: ObservableObject {
     // Injectable for testing
     var urlSession: URLSession = .shared
 
-    private var cachedToken: String?
-
     private init() {}
-
-    private func accessToken() throws -> String {
-        if let token = cachedToken { return token }
-        let token = try readOAuthAccessToken()
-        cachedToken = token
-        return token
-    }
 
     func startPolling() {
         fetchUsage()
@@ -129,7 +120,7 @@ final class UsageService: ObservableObject {
 
         Task {
             do {
-                let token = try accessToken()
+                let token = try readOAuthAccessToken()
                 let response = try await fetchOAuthUsage(accessToken: token)
 
                 let fiveHourUtil = Int(response.fiveHour?.utilization ?? 0)
@@ -161,8 +152,6 @@ final class UsageService: ObservableObject {
                 let isRateLimit = error.code == 429
                 await MainActor.run {
                     if isRateLimit {
-                        // Clear token so next attempt re-reads a potentially refreshed token from Keychain
-                        self.cachedToken = nil
                         self.error = "Rate limited — retrying in 15 min"
                         self.scheduleTimer(interval: self.backoffInterval)
                     } else {
