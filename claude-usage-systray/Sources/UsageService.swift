@@ -1,5 +1,4 @@
 import Foundation
-import Security
 
 // MARK: - OAuth Keychain
 
@@ -13,18 +12,19 @@ private struct KeychainCredentials: Decodable {
 }
 
 func readOAuthAccessToken() throws -> String {
-    var result: AnyObject?
-    let query: [String: Any] = [
-        kSecClass as String: kSecClassGenericPassword,
-        kSecAttrService as String: "Claude Code-credentials",
-        kSecReturnData as String: true,
-        kSecMatchLimit as String: kSecMatchLimitOne
-    ]
-    let status = SecItemCopyMatching(query as CFDictionary, &result)
-    guard status == errSecSuccess, let data = result as? Data else {
-        throw NSError(domain: "Keychain", code: Int(status),
-                      userInfo: [NSLocalizedDescriptionKey: "Claude Code credentials not found in Keychain. Make sure Claude Code is installed and logged in. (status: \(status))"])
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/security")
+    process.arguments = ["find-generic-password", "-s", "Claude Code-credentials", "-w"]
+    let pipe = Pipe()
+    process.standardOutput = pipe
+    process.standardError = FileHandle.nullDevice
+    try process.run()
+    process.waitUntilExit()
+    guard process.terminationStatus == 0 else {
+        throw NSError(domain: "Keychain", code: Int(process.terminationStatus),
+                      userInfo: [NSLocalizedDescriptionKey: "Claude Code credentials not found in Keychain. Make sure Claude Code is installed and logged in."])
     }
+    let data = pipe.fileHandleForReading.readDataToEndOfFile()
     let creds = try JSONDecoder().decode(KeychainCredentials.self, from: data)
     return creds.claudeAiOauth.accessToken
 }
@@ -44,7 +44,7 @@ struct OAuthUsageResponse: Decodable {
 
     struct UsagePeriod: Decodable {
         let utilization: Double
-        let resetsAt: String
+        let resetsAt: String?
 
         enum CodingKeys: String, CodingKey {
             case utilization
@@ -52,6 +52,7 @@ struct OAuthUsageResponse: Decodable {
         }
 
         var resetsAtDate: Date? {
+            guard let resetsAt else { return nil }
             let formatter = ISO8601DateFormatter()
             formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
             return formatter.date(from: resetsAt)

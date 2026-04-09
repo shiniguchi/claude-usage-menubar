@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 63;
+	objectVersion = 77;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -16,7 +16,6 @@
 		C33689B322FFA7525A92894A /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE78D81A249AA2CBF9D9C9CB /* AppDelegate.swift */; };
 		CA4C19637A5CD709F1C57EDA /* UsageServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CF92A3018305AA026317454 /* UsageServiceTests.swift */; };
 		F25EDEE38ABF1A0E15C849DC /* SettingsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C024067E6D3F865AF198511C /* SettingsManager.swift */; };
-		F6263675C12E1B942E3CD6AF /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DA6F91F4720B31FB4CA872B9 /* Security.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -40,32 +39,12 @@
 		C024067E6D3F865AF198511C /* SettingsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsManager.swift; sourceTree = "<group>"; };
 		C3BC14807EE08B3766D0A9C8 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		D08767FD02695AFBE000669F /* ClaudeUsageSystray.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ClaudeUsageSystray.entitlements; sourceTree = "<group>"; };
-		DA6F91F4720B31FB4CA872B9 /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
 		DE78D81A249AA2CBF9D9C9CB /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		DEE554A7DA6DDC77A08A3EEE /* UsageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageService.swift; sourceTree = "<group>"; };
 		F35CDB3DFFFBEE4CE3F0D52E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
-/* Begin PBXFrameworksBuildPhase section */
-		FF70D92719D6AF7A3060F7A9 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				F6263675C12E1B942E3CD6AF /* Security.framework in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXFrameworksBuildPhase section */
-
 /* Begin PBXGroup section */
-		135D60B6F5A860C527648D36 /* Frameworks */ = {
-			isa = PBXGroup;
-			children = (
-				DA6F91F4720B31FB4CA872B9 /* Security.framework */,
-			);
-			name = Frameworks;
-			sourceTree = "<group>";
-		};
 		1AF0CF7ED99100A4649F23C8 /* Resources */ = {
 			isa = PBXGroup;
 			children = (
@@ -82,7 +61,6 @@
 				1AF0CF7ED99100A4649F23C8 /* Resources */,
 				CCA61D9CECE9D34BEF37FEDA /* Sources */,
 				AE3D7472958AF08383FEC913 /* Tests */,
-				135D60B6F5A860C527648D36 /* Frameworks */,
 				AA881A5A4FEF8FBF9B7F8DB4 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -127,7 +105,6 @@
 			buildPhases = (
 				8F96AD6E16BF1B98DD90826A /* Sources */,
 				7F28E9AD36530FD142427778 /* Resources */,
-				FF70D92719D6AF7A3060F7A9 /* Frameworks */,
 			);
 			buildRules = (
 			);
@@ -167,6 +144,10 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1500;
 				TargetAttributes = {
+					B1D424FB04FF0960503B8D19 = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Manual;
+					};
 					C7A88CFB9EFB102A812B10AC = {
 						DevelopmentTeam = "";
 						ProvisioningStyle = Manual;
@@ -174,7 +155,6 @@
 				};
 			};
 			buildConfigurationList = 82F97C8352E3E45739645B76 /* Build configuration list for PBXProject "ClaudeUsageSystray" */;
-			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -183,6 +163,8 @@
 			);
 			mainGroup = 77B3C9D5094F40C75DEF6774;
 			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = AA881A5A4FEF8FBF9B7F8DB4 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -308,23 +290,11 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Resources/ClaudeUsageSystray.entitlements;
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = AHGFV6BL8B;
-				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = Resources/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "Claude Usage Systray";
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-				);
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
 				LSUIElement = YES;
-				MARKETING_VERSION = 1.0.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.adntgv.claude-usage-systray";
-				PROVISIONING_PROFILE_SPECIFIER = "";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.claude.usage-systray";
 				SDKROOT = macosx;
 			};
 			name = Release;
@@ -393,22 +363,11 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Resources/ClaudeUsageSystray.entitlements;
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = AHGFV6BL8B;
 				INFOPLIST_FILE = Resources/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "Claude Usage Systray";
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-				);
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
 				LSUIElement = YES;
-				MARKETING_VERSION = 1.0.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.adntgv.claude-usage-systray";
-				PROVISIONING_PROFILE_SPECIFIER = "";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.claude.usage-systray";
 				SDKROOT = macosx;
 			};
 			name = Debug;
