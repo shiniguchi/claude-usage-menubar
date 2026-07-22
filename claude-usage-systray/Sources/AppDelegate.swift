@@ -9,8 +9,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let usageService = UsageService.shared
     private let settingsManager = SettingsManager.shared
     
-    private var lastWarningNotified: Int = 0
-    private var lastCriticalNotified: Int = 0
+    // Per-meter threshold values already notified (keyed by meter name),
+    // so each meter fires each threshold once per crossing
+    private var lastWarningNotified: [String: Int] = [:]
+    private var lastCriticalNotified: [String: Int] = [:]
 
     // Keep Combine subscriptions alive
     private var cancellables = Set<AnyCancellable>()
@@ -137,6 +139,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let str = NSMutableAttributedString()
             str.append(NSAttributedString(string: "\(fiveH)%",
                 attributes: [.font: font, .foregroundColor: usageColor(for: fiveH)]))
+            // Scoped per-model limits (e.g. Fable) sit between the session and
+            // weekly meters — cap at 2 to protect menu bar width
+            for limit in snapshot.scopedLimits.prefix(2) {
+                str.append(NSAttributedString(string: " · ",
+                    attributes: [.font: font, .foregroundColor: NSColor.secondaryLabelColor]))
+                str.append(NSAttributedString(string: "\(limit.percent)%",
+                    attributes: [.font: font, .foregroundColor: usageColor(for: limit.percent)]))
+            }
             str.append(NSAttributedString(string: " · ",
                 attributes: [.font: font, .foregroundColor: NSColor.secondaryLabelColor]))
             str.append(NSAttributedString(string: "\(sevenD)%",
@@ -176,25 +186,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func checkForNotifications() {
         guard settingsManager.settings.notificationsEnabled else { return }
-        
-        let usage = usageService.currentUsage.sevenDayUtilization
+
+        let snapshot = usageService.currentUsage
         let warningThreshold = Int(settingsManager.settings.warningThreshold)
         let criticalThreshold = Int(settingsManager.settings.criticalThreshold)
 
-        if usage >= criticalThreshold && lastCriticalNotified < criticalThreshold {
-            sendNotification(
-                title: "Critical: Claude Usage",
-                body: "You've used \(usage)% of your weekly quota. Consider pausing non-essential tasks.",
-                isCritical: true
-            )
-            lastCriticalNotified = criticalThreshold
-        } else if usage >= warningThreshold && lastWarningNotified < warningThreshold && usage < criticalThreshold {
-            sendNotification(
-                title: "Warning: Claude Usage",
-                body: "You've used \(usage)% of your weekly quota.",
-                isCritical: false
-            )
-            lastWarningNotified = warningThreshold
+        var meters = [("Week", snapshot.sevenDayUtilization, "weekly quota")]
+        meters += snapshot.scopedLimits.map { ($0.name, $0.percent, "weekly \($0.name) quota") }
+
+        for (name, percent, quotaLabel) in meters {
+            let level = evaluateAlert(percent: percent,
+                                      warning: warningThreshold,
+                                      critical: criticalThreshold,
+                                      lastWarningNotified: lastWarningNotified[name] ?? 0,
+                                      lastCriticalNotified: lastCriticalNotified[name] ?? 0)
+            switch level {
+            case .critical:
+                sendNotification(
+                    title: "Critical: Claude Usage",
+                    body: "You've used \(percent)% of your \(quotaLabel). Consider pausing non-essential tasks.",
+                    isCritical: true
+                )
+                lastCriticalNotified[name] = criticalThreshold
+            case .warning:
+                sendNotification(
+                    title: "Warning: Claude Usage",
+                    body: "You've used \(percent)% of your \(quotaLabel).",
+                    isCritical: false
+                )
+                lastWarningNotified[name] = warningThreshold
+            case nil:
+                break
+            }
         }
     }
 

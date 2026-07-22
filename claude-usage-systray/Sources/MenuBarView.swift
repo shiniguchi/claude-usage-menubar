@@ -9,11 +9,6 @@ struct MenuBarView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             usageHeader
-            
-            Divider()
-                .padding(.vertical, 4)
-
-            modelBreakdown
 
             Divider()
                 .padding(.vertical, 4)
@@ -47,6 +42,21 @@ struct MenuBarView: View {
                 }
             }
 
+            ForEach(usageService.currentUsage.scopedLimits, id: \.name) { limit in
+                HStack {
+                    Image(systemName: "cpu")
+                        .foregroundColor(thresholdColor(for: limit.percent))
+                    Text("\(limit.name): \(limit.percent)%")
+                        .fontWeight(.medium)
+                    Spacer()
+                    if let resetsIn = limit.resetsIn {
+                        Text(resetsIn)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+
             HStack {
                 Image(systemName: "calendar")
                     .foregroundColor(weeklyColor)
@@ -72,23 +82,6 @@ struct MenuBarView: View {
             }
         }
         .padding(.horizontal, 12)
-    }
-
-    private var modelBreakdown: some View {
-        Group {
-            if let sonnetUsage = usageService.currentUsage.sevenDaySonnetUtilization {
-                HStack {
-                    Image(systemName: "cpu")
-                        .font(.caption)
-                        .foregroundColor(.blue)
-                    Text("Sonnet: \(sonnetUsage)%")
-                        .font(.caption)
-                    Spacer()
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 2)
-            }
-        }
     }
 
     private var actionButtons: some View {
@@ -156,11 +149,14 @@ struct MenuBarView: View {
     }
 
     private var weeklyColor: Color {
-        let usage = usageService.currentUsage.sevenDayUtilization
+        thresholdColor(for: usageService.currentUsage.sevenDayUtilization)
+    }
+
+    private func thresholdColor(for percent: Int) -> Color {
         let criticalThreshold = Int(settingsManager.settings.criticalThreshold)
         let warningThreshold = Int(settingsManager.settings.warningThreshold)
-        if usage >= criticalThreshold { return .red }
-        if usage >= warningThreshold { return .orange }
+        if percent >= criticalThreshold { return .red }
+        if percent >= warningThreshold { return .orange }
         return .primary
     }
 

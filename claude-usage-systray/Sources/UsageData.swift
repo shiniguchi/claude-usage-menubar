@@ -9,16 +9,39 @@ struct AppSettings: Codable {
     var isConfigured: Bool { true }
 }
 
+enum AlertLevel {
+    case warning
+    case critical
+}
+
+/// Decides whether a meter crossing a threshold warrants a notification.
+/// `lastWarningNotified`/`lastCriticalNotified` are the threshold values
+/// already notified for this meter (0 if never), so each threshold fires once.
+func evaluateAlert(percent: Int, warning: Int, critical: Int,
+                   lastWarningNotified: Int, lastCriticalNotified: Int) -> AlertLevel? {
+    if percent >= critical {
+        return lastCriticalNotified < critical ? .critical : nil
+    }
+    if percent >= warning {
+        return lastWarningNotified < warning ? .warning : nil
+    }
+    return nil
+}
+
+/// A per-model weekly limit from the API's `limits` array (e.g. Fable).
+struct ScopedLimit: Equatable {
+    let name: String
+    let percent: Int
+    let resetsIn: String?
+}
+
 struct UsageSnapshot {
     let fiveHourUtilization: Int
     let sevenDayUtilization: Int
-    let sevenDaySonnetUtilization: Int?
+    let scopedLimits: [ScopedLimit]
     let fiveHourResetIn: String?
     let sevenDayResetIn: String?
     let lastUpdated: Date
-    let weeklySessions: Int
-    let weeklyMessages: Int
-    let weeklyTokens: Int
 
     var displayText: String { "\(sevenDayUtilization)%" }
     var menuBarPrimaryText: String { "5hr: \(fiveHourUtilization)%" }
@@ -28,13 +51,10 @@ struct UsageSnapshot {
         UsageSnapshot(
             fiveHourUtilization: 0,
             sevenDayUtilization: 0,
-            sevenDaySonnetUtilization: nil,
+            scopedLimits: [],
             fiveHourResetIn: nil,
             sevenDayResetIn: nil,
-            lastUpdated: Date(),
-            weeklySessions: 0,
-            weeklyMessages: 0,
-            weeklyTokens: 0
+            lastUpdated: Date()
         )
     }
 }

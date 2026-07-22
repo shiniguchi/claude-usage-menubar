@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - OAuth Keychain
 
-private struct KeychainCredentials: Decodable {
+struct KeychainCredentials: Decodable {
     let claudeAiOauth: OAuthData
 
     struct OAuthData: Decodable {
@@ -11,7 +11,7 @@ private struct KeychainCredentials: Decodable {
     }
 }
 
-func readOAuthAccessToken() throws -> String {
+func readOAuthCredentials() throws -> KeychainCredentials.OAuthData {
     let process = Process()
     process.executableURL = URL(fileURLWithPath: "/usr/bin/security")
     process.arguments = ["find-generic-password", "-s", "Claude Code-credentials", "-w"]
@@ -26,20 +26,34 @@ func readOAuthAccessToken() throws -> String {
     }
     let data = pipe.fileHandleForReading.readDataToEndOfFile()
     let creds = try JSONDecoder().decode(KeychainCredentials.self, from: data)
-    return creds.claudeAiOauth.accessToken
+    return creds.claudeAiOauth
 }
 
 // MARK: - API Response Model
 
+/// Parses the API's ISO8601 timestamps, with or without fractional seconds.
+func parseResetsAtDate(_ string: String?) -> Date? {
+    guard let string else { return nil }
+    let formatter = ISO8601DateFormatter()
+    formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    if let date = formatter.date(from: string) { return date }
+    formatter.formatOptions = [.withInternetDateTime]
+    return formatter.date(from: string)
+}
+
 struct OAuthUsageResponse: Decodable {
+    // Legacy fields — kept as fallback for older API responses
     let fiveHour: UsagePeriod?
     let sevenDay: UsagePeriod?
     let sevenDaySonnet: UsagePeriod?
+    // Current source of truth: one entry per limit, scoped limits carry a model name
+    let limits: [LimitEntry]?
 
     enum CodingKeys: String, CodingKey {
         case fiveHour = "five_hour"
         case sevenDay = "seven_day"
         case sevenDaySonnet = "seven_day_sonnet"
+        case limits
     }
 
     struct UsagePeriod: Decodable {
@@ -51,16 +65,65 @@ struct OAuthUsageResponse: Decodable {
             case resetsAt = "resets_at"
         }
 
-        var resetsAtDate: Date? {
-            guard let resetsAt else { return nil }
-            let formatter = ISO8601DateFormatter()
-            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            return formatter.date(from: resetsAt)
+        var resetsAtDate: Date? { parseResetsAtDate(resetsAt) }
+    }
+
+    struct LimitEntry: Decodable {
+        let kind: String            // "session" | "weekly_all" | "weekly_scoped" | future kinds
+        let percent: Int
+        let resetsAt: String?
+        let scope: Scope?
+
+        enum CodingKeys: String, CodingKey {
+            case kind, percent, scope
+            case resetsAt = "resets_at"
         }
+
+        struct Scope: Decodable {
+            let model: Model?
+            struct Model: Decodable {
+                let displayName: String?
+                enum CodingKeys: String, CodingKey { case displayName = "display_name" }
+            }
+        }
+
+        var resetsAtDate: Date? { parseResetsAtDate(resetsAt) }
     }
 }
 
+/// Builds the UI snapshot from an API response. Prefers the `limits` array
+/// (current API shape); falls back to the legacy top-level fields.
+func makeSnapshot(from response: OAuthUsageResponse, now: Date = Date()) -> UsageSnapshot {
+    func countdown(_ date: Date?) -> String? {
+        date.map { formatTimeRemaining(until: $0, from: now) }
+    }
+
+    let session = response.limits?.first { $0.kind == "session" }
+    let weekly = response.limits?.first { $0.kind == "weekly_all" }
+    let scoped = (response.limits ?? [])
+        .filter { $0.kind == "weekly_scoped" }
+        .map { ScopedLimit(name: $0.scope?.model?.displayName ?? "Scoped",
+                           percent: $0.percent,
+                           resetsIn: countdown($0.resetsAtDate)) }
+
+    return UsageSnapshot(
+        fiveHourUtilization: session?.percent ?? Int(response.fiveHour?.utilization ?? 0),
+        sevenDayUtilization: weekly?.percent ?? Int(response.sevenDay?.utilization ?? 0),
+        scopedLimits: scoped,
+        fiveHourResetIn: countdown(session?.resetsAtDate ?? response.fiveHour?.resetsAtDate),
+        sevenDayResetIn: countdown(weekly?.resetsAtDate ?? response.sevenDay?.resetsAtDate),
+        lastUpdated: now
+    )
+}
+
 // MARK: - Utilization helpers (pure, testable)
+
+/// Whether a cached OAuth token is still usable. `expiresAtMs` is epoch
+/// milliseconds (as stored by Claude Code in the Keychain). A 60-second
+/// buffer avoids using a token that expires mid-request.
+func isTokenValid(expiresAtMs: Double, now: Date = Date()) -> Bool {
+    return expiresAtMs / 1000 - now.timeIntervalSince1970 > 60
+}
 
 /// Returns utilization percentage (0–100) given token count and limit.
 func calculateUtilization(tokens: Int, limit: Int) -> Int {
@@ -85,9 +148,6 @@ final class UsageService: ObservableObject {
     @Published private(set) var currentUsage: UsageSnapshot = .placeholder
     @Published private(set) var error: String?
     @Published private(set) var isLoading: Bool = false
-    @Published private(set) var weeklySessions: Int = 0
-    @Published private(set) var weeklyMessages: Int = 0
-    @Published private(set) var weeklyTokens: Int = 0
 
     private var refreshTimer: Timer?
     private let normalInterval: TimeInterval = 5 * 60   // 5 minutes
@@ -95,6 +155,13 @@ final class UsageService: ObservableObject {
 
     // Injectable for testing
     var urlSession: URLSession = .shared
+
+    // Cached Keychain credentials. Reading the Keychain spawns `security`,
+    // which triggers a user password prompt whenever Claude Code has
+    // recreated the item (it does so on every token refresh, wiping the
+    // ACL — see anthropics/claude-code#22144). Cache until expiry so we
+    // read at most a few times a day instead of every poll.
+    private var cachedCredentials: KeychainCredentials.OAuthData?
 
     private init() {}
 
@@ -120,27 +187,8 @@ final class UsageService: ObservableObject {
 
         Task {
             do {
-                let token = try readOAuthAccessToken()
-                let response = try await fetchOAuthUsage(accessToken: token)
-
-                let fiveHourUtil = Int(response.fiveHour?.utilization ?? 0)
-                let sevenDayUtil = Int(response.sevenDay?.utilization ?? 0)
-                let sonnetUtil: Int? = response.sevenDaySonnet.map { Int($0.utilization) }
-
-                let fiveHourReset = response.fiveHour?.resetsAtDate
-                let sevenDayReset = response.sevenDay?.resetsAtDate
-
-                let snapshot = UsageSnapshot(
-                    fiveHourUtilization: fiveHourUtil,
-                    sevenDayUtilization: sevenDayUtil,
-                    sevenDaySonnetUtilization: sonnetUtil,
-                    fiveHourResetIn: fiveHourReset.map { formatTimeRemaining(until: $0) },
-                    sevenDayResetIn: sevenDayReset.map { formatTimeRemaining(until: $0) },
-                    lastUpdated: Date(),
-                    weeklySessions: 0,
-                    weeklyMessages: 0,
-                    weeklyTokens: 0
-                )
+                let response = try await fetchUsageRefreshingTokenOn401()
+                let snapshot = makeSnapshot(from: response)
 
                 await MainActor.run {
                     self.currentUsage = snapshot
@@ -161,6 +209,25 @@ final class UsageService: ObservableObject {
                     self.isLoading = false
                 }
             }
+        }
+    }
+
+    private func currentAccessToken() throws -> String {
+        if let cached = cachedCredentials, isTokenValid(expiresAtMs: cached.expiresAt) {
+            return cached.accessToken
+        }
+        let creds = try readOAuthCredentials()
+        cachedCredentials = creds
+        return creds.accessToken
+    }
+
+    private func fetchUsageRefreshingTokenOn401() async throws -> OAuthUsageResponse {
+        do {
+            return try await fetchOAuthUsage(accessToken: currentAccessToken())
+        } catch let error as NSError where error.domain == "OAuthUsage" && error.code == 401 {
+            // Claude Code rotated the token under us — drop the cache and retry once
+            cachedCredentials = nil
+            return try await fetchOAuthUsage(accessToken: currentAccessToken())
         }
     }
 

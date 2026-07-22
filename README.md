@@ -12,7 +12,7 @@ Mirrors the data on `claude.ai/settings/usage`:
 |--------|-------------|
 | **5h** | Current session usage (resets every ~5 hours) |
 | **7d** | Weekly all-models usage |
-| **Sonnet** | Weekly Sonnet-only usage (shown in popover) |
+| **Per-model** | Weekly per-model limits (e.g. Fable), taken dynamically from the API's `limits` array |
 
 Colors update based on your configured warning/critical thresholds.
 
@@ -49,7 +49,7 @@ Or open `ClaudeUsageSystray.xcodeproj` in Xcode and run with ⌘R.
 
 Toggle **Compact display** in Settings to switch between:
 
-- **Compact (default):** `35% · 71%` — both 5h and 7d inline, each colored by threshold
+- **Compact (default):** `57% · 48% · 30%` — 5h, then up to two per-model limits (e.g. Fable), then 7d, each colored by threshold
 - **Normal:** icon + `71%` — weekly usage only
 
 ## How it works
@@ -62,7 +62,7 @@ Authorization: Bearer <oauth_token>
 anthropic-beta: oauth-2025-04-20
 ```
 
-The token is read once at startup and cached in memory. It refreshes automatically when you restart the app (Claude Code keeps it current in the Keychain).
+The token is cached in memory until it expires and re-read from the Keychain only then (or after a 401). This keeps Keychain reads — and the macOS password prompts caused by Claude Code recreating the item on every token refresh ([anthropics/claude-code#22144](https://github.com/anthropics/claude-code/issues/22144)) — to a few per day instead of every poll.
 
 > **Note:** This endpoint is undocumented and may change. It requires Claude Code to be installed and logged in.
 

@@ -102,6 +102,89 @@ final class OAuthUsageResponseTests: XCTestCase {
     }
 }
 
+// MARK: - limits array (new API shape, captured live 2026-07-22)
+
+final class LimitsArrayTests: XCTestCase {
+
+    // Trimmed verbatim from GET /api/oauth/usage — includes unknown keys the
+    // decoder must tolerate and null legacy fields.
+    private let livePayload = """
+    {
+      "five_hour": { "utilization": 57.0, "resets_at": "2026-07-22T15:10:00.002458+00:00", "limit_dollars": null },
+      "seven_day": { "utilization": 30.0, "resets_at": "2026-07-26T20:00:00.002477+00:00", "limit_dollars": null },
+      "seven_day_sonnet": null,
+      "seven_day_opus": null,
+      "iguana_necktie": null,
+      "nimbus_quill": null,
+      "limits": [
+        { "kind": "session", "group": "session", "percent": 57, "severity": "normal",
+          "resets_at": "2026-07-22T15:10:00.002458+00:00", "scope": null, "is_active": true },
+        { "kind": "weekly_all", "group": "weekly", "percent": 30, "severity": "normal",
+          "resets_at": "2026-07-26T20:00:00.002477+00:00", "scope": null, "is_active": false },
+        { "kind": "weekly_scoped", "group": "weekly", "percent": 48, "severity": "normal",
+          "resets_at": "2026-07-26T20:00:00.002663+00:00",
+          "scope": { "model": { "id": null, "display_name": "Fable" }, "surface": null }, "is_active": false }
+      ]
+    }
+    """.data(using: .utf8)!
+
+    func testDecodesLimitsArray() throws {
+        let response = try JSONDecoder().decode(OAuthUsageResponse.self, from: livePayload)
+
+        XCTAssertEqual(response.limits?.count, 3)
+        XCTAssertEqual(response.limits?[0].kind, "session")
+        XCTAssertEqual(response.limits?[0].percent, 57)
+        XCTAssertEqual(response.limits?[2].kind, "weekly_scoped")
+        XCTAssertEqual(response.limits?[2].scope?.model?.displayName, "Fable")
+    }
+
+    func testMakeSnapshotPrefersLimitsArray() throws {
+        let response = try JSONDecoder().decode(OAuthUsageResponse.self, from: livePayload)
+        let snapshot = makeSnapshot(from: response)
+
+        XCTAssertEqual(snapshot.fiveHourUtilization, 57)
+        XCTAssertEqual(snapshot.sevenDayUtilization, 30)
+        XCTAssertEqual(snapshot.scopedLimits, [ScopedLimit(name: "Fable", percent: 48, resetsIn: snapshot.scopedLimits.first?.resetsIn)])
+        XCTAssertEqual(snapshot.scopedLimits.first?.name, "Fable")
+        XCTAssertEqual(snapshot.scopedLimits.first?.percent, 48)
+    }
+
+    func testMakeSnapshotFallsBackToLegacyFields() throws {
+        let legacy = """
+        {
+          "five_hour": { "utilization": 35.0, "resets_at": "2026-03-19T19:00:00.367134+00:00" },
+          "seven_day": { "utilization": 71.0, "resets_at": "2026-03-20T11:00:00.367161+00:00" },
+          "seven_day_sonnet": null
+        }
+        """.data(using: .utf8)!
+
+        let response = try JSONDecoder().decode(OAuthUsageResponse.self, from: legacy)
+        let snapshot = makeSnapshot(from: response)
+
+        XCTAssertEqual(snapshot.fiveHourUtilization, 35)
+        XCTAssertEqual(snapshot.sevenDayUtilization, 71)
+        XCTAssertTrue(snapshot.scopedLimits.isEmpty)
+    }
+
+    func testScopedLimitWithNullDisplayNameFallsBackToScoped() throws {
+        let json = """
+        {
+          "five_hour": null, "seven_day": null,
+          "limits": [
+            { "kind": "weekly_scoped", "percent": 12, "resets_at": null,
+              "scope": { "model": { "id": null, "display_name": null } } }
+          ]
+        }
+        """.data(using: .utf8)!
+
+        let response = try JSONDecoder().decode(OAuthUsageResponse.self, from: json)
+        let snapshot = makeSnapshot(from: response)
+
+        XCTAssertEqual(snapshot.scopedLimits.first?.name, "Scoped")
+        XCTAssertEqual(snapshot.scopedLimits.first?.percent, 12)
+    }
+}
+
 // MARK: - calculateUtilization
 
 final class CalculateUtilizationTests: XCTestCase {
@@ -128,6 +211,70 @@ final class CalculateUtilizationTests: XCTestCase {
 
     func testRoundsDown() {
         XCTAssertEqual(calculateUtilization(tokens: 1, limit: 3), 33)
+    }
+}
+
+// MARK: - isTokenValid
+
+final class IsTokenValidTests: XCTestCase {
+
+    private let now = Date(timeIntervalSince1970: 1_784_700_000) // fixed clock
+
+    func testTokenExpiringInOneHourIsValid() {
+        let expiresAtMs = (now.timeIntervalSince1970 + 3600) * 1000
+        XCTAssertTrue(isTokenValid(expiresAtMs: expiresAtMs, now: now))
+    }
+
+    func testExpiredTokenIsInvalid() {
+        let expiresAtMs = (now.timeIntervalSince1970 - 1) * 1000
+        XCTAssertFalse(isTokenValid(expiresAtMs: expiresAtMs, now: now))
+    }
+
+    func testTokenInsideSixtySecondBufferIsInvalid() {
+        // Expiring in 30s — inside the 60s safety buffer, treat as invalid
+        let expiresAtMs = (now.timeIntervalSince1970 + 30) * 1000
+        XCTAssertFalse(isTokenValid(expiresAtMs: expiresAtMs, now: now))
+    }
+
+    func testTokenJustOutsideBufferIsValid() {
+        let expiresAtMs = (now.timeIntervalSince1970 + 61) * 1000
+        XCTAssertTrue(isTokenValid(expiresAtMs: expiresAtMs, now: now))
+    }
+}
+
+// MARK: - evaluateAlert
+
+final class EvaluateAlertTests: XCTestCase {
+
+    func testCrossingWarningThresholdFiresWarning() {
+        XCTAssertEqual(evaluateAlert(percent: 82, warning: 80, critical: 90,
+                                     lastWarningNotified: 0, lastCriticalNotified: 0), .warning)
+    }
+
+    func testCrossingCriticalThresholdFiresCritical() {
+        XCTAssertEqual(evaluateAlert(percent: 95, warning: 80, critical: 90,
+                                     lastWarningNotified: 0, lastCriticalNotified: 0), .critical)
+    }
+
+    func testCriticalWinsOverWarning() {
+        // At/above critical, never downgrade to a warning notification
+        XCTAssertEqual(evaluateAlert(percent: 90, warning: 80, critical: 90,
+                                     lastWarningNotified: 0, lastCriticalNotified: 0), .critical)
+    }
+
+    func testAlreadyNotifiedWarningStaysSilent() {
+        XCTAssertNil(evaluateAlert(percent: 85, warning: 80, critical: 90,
+                                   lastWarningNotified: 80, lastCriticalNotified: 0))
+    }
+
+    func testAlreadyNotifiedCriticalStaysSilent() {
+        XCTAssertNil(evaluateAlert(percent: 95, warning: 80, critical: 90,
+                                   lastWarningNotified: 80, lastCriticalNotified: 90))
+    }
+
+    func testBelowWarningStaysSilent() {
+        XCTAssertNil(evaluateAlert(percent: 51, warning: 80, critical: 90,
+                                   lastWarningNotified: 0, lastCriticalNotified: 0))
     }
 }
 
