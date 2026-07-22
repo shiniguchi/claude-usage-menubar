@@ -23,22 +23,15 @@ Colors update based on your configured warning/critical thresholds.
 
 ## Install
 
-**Homebrew (recommended):**
+**From a release:**
 
-```bash
-brew tap adntgv/tap
-brew install --cask claude-usage-systray
-```
-
-**Manual:**
-
-Download the latest `ClaudeUsageSystray.zip` from the [Releases page](https://github.com/adntgv/claude-usage-systray/releases), unzip, and move `ClaudeUsageSystray.app` to `/Applications`. The app is notarized — macOS will open it normally on first launch.
+Download the latest `ClaudeUsageSystray.zip` from the [Releases page](https://github.com/shiniguchi/claude-usage-menubar/releases), unzip, and move `ClaudeUsageSystray.app` to `/Applications`. If macOS blocks the first launch, right-click the app and choose **Open**.
 
 ## Build from source
 
 ```bash
-git clone https://github.com/adntgv/claude-usage-systray
-cd claude-usage-systray/claude-usage-systray
+git clone https://github.com/shiniguchi/claude-usage-menubar
+cd claude-usage-menubar/claude-usage-systray
 xcodebuild -scheme ClaudeUsageSystray -configuration Release build
 open ~/Library/Developer/Xcode/DerivedData/ClaudeUsageSystray-*/Build/Products/Release/ClaudeUsageSystray.app
 ```
