@@ -8,13 +8,20 @@ build/
 *.dSYM.zip
 *.dSYM
 
+# Editors
+.vscode/
+
+# Test coverage artifacts
+*.profraw
+
 # macOS
 .DS_Store
 .AppleDouble
 .LSOverride
 
-# Claude Code local settings
+# Claude Code local settings and per-user memory (may contain personal context)
 .claude/settings.local.json
+.claude/memory/
 
 # Release artifacts
 *.zip

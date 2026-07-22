@@ -1,0 +1,4 @@
+{
+  "type": "commonjs",
+  "description": "Scopes .claude/hooks/ to CommonJS so require() works regardless of any root package.json module type."
+}
