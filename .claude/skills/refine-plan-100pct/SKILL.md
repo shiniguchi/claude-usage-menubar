@@ -1,4 +1,5 @@
 ---
+name: refine-plan-100pct
 description: Refine any plan - upgrade from 60% to 100% quality using conversation context
 ---
 
@@ -19,14 +20,14 @@ Before refining, sanity-check that the plan isn't built on a prematurely-converg
 ## Critique against 4 pillars
 
 - **Minimal** — remove anything not strictly required. Less code, fewer steps, no gold-plating
-- **Scalable** — will this approach hold up as the app grows? Avoid patterns that break at scale
-- **Dynamic** — no hardcoding. Use settings, config, or data-driven logic
+- **Scalable** — will this approach hold up as the system grows? Avoid patterns that break at scale
+- **Dynamic** — no hardcoding. Use config, env vars, or data-driven logic
 - **Universal** — recycle existing functions and patterns. Don't reinvent what already exists
 
 ## Make It Specific
 
-**60% Example:** "Add Opus usage tracking"
-**100% Example:** "Decode `seven_day_opus` in `OAuthUsageResponse` (optional, like `seven_day_sonnet`), thread it through `UsageSnapshot`, show it in `MenuBarView`'s popover, add a decoding test for null and present cases"
+**60% Example:** "Add user authentication"
+**100% Example:** "Add MFA to NextAuth.js, update `/auth/mfa` endpoint in the backend, add frontend MFA modal, test with 2 pilot users first"
 
 ## Output
 

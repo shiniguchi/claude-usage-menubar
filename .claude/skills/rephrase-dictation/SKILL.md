@@ -1,4 +1,5 @@
 ---
+name: rephrase-dictation
 description: Rephrase user's dictation into clear structured language for confirmation before proceeding
 ---
 

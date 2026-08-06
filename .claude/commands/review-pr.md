@@ -4,13 +4,13 @@ description: Holistic PR alignment - fix cross-file inconsistencies, delete aban
 
 # PR Holistic Alignment
 
-**Objective**: Analyze the branch diff, fix all misalignments, delete dead code, refactor docs to KISS. Make production-ready.
+**Objective**: Analyze PR, fix all misalignments, delete dead code, refactor docs to KISS. Make production-ready.
 
 ---
 
 ## Core Operations
 
-### 1. Detect Branch Changes
+### 1. Detect PR Changes
 
 ```bash
 git diff $(git merge-base origin/main HEAD)...HEAD
@@ -18,61 +18,115 @@ git diff $(git merge-base origin/main HEAD)...HEAD
 
 ### 2. Align Cross-File References
 
-For each changed pattern → grep the entire repo → fix mismatches.
+For each changed pattern → grep entire repo → fix mismatches.
 
 Examples:
-- Function/type renamed: find old name usages → update all
-- Target or build setting changed in `claude-usage-systray/project.yml` → regenerate with `xcodegen generate` and commit both `project.yml` and the `.xcodeproj`
-- API response field added/removed in `UsageService.swift` → update decoding tests in `Tests/UsageServiceTests.swift`
-- Setting added to `AppSettings` → check `SettingsManager`, `SettingsView`, and README settings table
+- Function renamed: find old name usages → update all
+- Import path changed: find old imports → update all
+- Type signature changed: find old usages → update all
+- Env var added: update all config files (`.env.example`, `docker-compose.yml`)
 
-### 3. Find and Delete Unused Code
+### 3. Find and Delete Unused Files & Code
 
-**Step 3A: Find potentially unused files**
+**Step 3A: Find Potentially Unused Files**
 
 ```bash
-find claude-usage-systray/Sources claude-usage-systray/Tests -name "*.swift"
+# List source files
+find src -type f \( -name "*.py" -o -name "*.ts" -o -name "*.js" \)
 # For each, check references → flag if 0 references
 ```
 
-**Step 3B: Verify & delete**
+**Step 3B: Verify & Delete**
 
-- Entry point (`main.swift`) → KEEP
+- Entry points (`main.py`, `index.ts`) → KEEP
 - Test files testing active code → KEEP
 - Truly orphaned → DELETE
 
-**Step 3C: Delete dead code within files**
+**Step 3C: Delete Dead Code Within Files**
 
-- Unreferenced functions/properties → delete
+- Unused exports (0 imports) → delete
 - Commented blocks (>5 lines) → delete
-- Legacy code paths replaced by this branch → delete old
+- Legacy code paths replaced by PR → delete old
+- Unreferenced functions → delete
 
 ### 4. Verify and Update All Documentation
 
-**Step 4A: Verify accuracy**
+**Step 4A: Verify Accuracy**
 
-For each doc file, read its claims, cross-reference with actual code, flag outdated sections:
-- `README.md` (especially the settings table, install steps, and "How it works")
-- `CLAUDE.md`
+For each README/doc file:
+1. Read the documentation claims
+2. Cross-reference with actual code
+3. Flag outdated sections
 
-**Step 4B: Update outdated content**
+Files to check:
+- `README.md`
+- `docs/*.md`
+- `.env.example`
+- `docker-compose.yml` comments
+- `.claude/CLAUDE.md`
+
+**Step 4B: Update Outdated Content**
 
 - Fix wrong function/file references
 - Remove documented features that no longer exist
-- Add missing critical steps
+- Add missing critical steps (env var added in code → add to docs)
 
 **Step 4C: Refactor to KISS**
 
 - Paragraphs (>4 sentences) → bullet lists
+- Complex explanations → tables or diagrams
 - Remove redundant explanations
-- Delete obvious inline comments, update outdated ones
+- Delete obvious inline comments
+- Update outdated comments
 
-### 5. Verify
+---
 
-Run the full test suite before declaring done:
+## Repo-Adaptive Validation
+
+Auto-detect repo type → run appropriate checks:
+
+| Repo Type                   | Checks                                    |
+| --------------------------- | ----------------------------------------- |
+| Python (Flask/FastAPI)      | black, mypy                               |
+| TypeScript (NestJS/Next.js) | eslint, tsc                               |
+| All repos                   | Cross-package impact, contract alignment  |
+
+---
+
+## Cross-Repo Impact
+
+If PR changes contracts (API endpoints, storage paths, DB schema, event types):
+1. Check impact on related repos
+2. Update shared docs if applicable
+3. Flag which repos need follow-up PRs
+
+---
+
+## Commit & Output
 
 ```bash
-cd claude-usage-systray && xcodebuild test -project ClaudeUsageSystray.xcodeproj \
-  -scheme ClaudeUsageSystrayTests -destination 'platform=macOS' \
-  CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+git add .
+git commit -m "refactor: align cross-file references, delete abandoned code, update docs to KISS"
 ```
+
+**Summary format:**
+
+```
+✅ Alignment: Fixed [N] files, [M] imports, [K] configs
+🗑️ Cleanup: Deleted [X] unused files, [Y] dead exports, [Z] comment blocks
+📚 Docs: Verified [P] files, updated [Q] outdated sections, converted [R] paragraphs → bullets
+🔄 Cross-repo: [List impacted repos if any]
+📊 Net: -[total] lines removed
+```
+
+---
+
+## Success Criteria
+
+- ✅ Zero cross-file inconsistencies
+- ✅ Zero unused files (verified and deleted)
+- ✅ Zero dead code
+- ✅ All docs accurate
+- ✅ All docs in KISS format
+- ✅ Repo-specific validation passed
+- ✅ Changes committed
