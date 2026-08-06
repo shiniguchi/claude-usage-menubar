@@ -4,19 +4,23 @@ description: Review current session's changes - validate, optimize, document
 
 # Session Review & Code Optimization
 
-**AI Agent Instructions**: Review changes made ONLY in this session, validate functionality, and optimize code.
+**AI Agent Instructions**: Execute this comprehensive current-session review to track changes ONLY in this session, validate functionality, and optimize code.
 
 ---
 
-## 1. Change Analysis
+## 1. Change Analysis & Impact Assessment
 
-1. **Identify session changes**
+1. **Identify current repository and changes**
    - `git status --porcelain` and `git diff --stat`
+   - `basename "$(git rev-parse --show-toplevel)"`
 
-2. **Impact analysis**
-   - Did the change touch the API response model, Keychain read, or polling logic in `UsageService.swift`? → decoding tests must cover it
-   - Did the change touch `AppSettings`? → check `SettingsManager`, `SettingsView`, and the README settings table stay in sync
-   - Did the change touch `project.yml`? → regenerate the `.xcodeproj` with `xcodegen generate`
+2. **Cross-package impact analysis**
+   - Look for shared contracts (API endpoints, DB schema, types) touched in this session
+   - Map changed files to impact zones
+
+3. **Data validation**
+   - If DB MCP is configured, check affected tables for expected state
+   - Use `Grep` to find schema/migration changes in modified files
 
 ---
 
@@ -24,30 +28,23 @@ description: Review current session's changes - validate, optimize, document
 
 1. **Code simplification analysis**
    - `git diff --numstat` to calculate lines added/removed
-   - Grep for leftover debug `print` statements, duplications
-   - Recommend consolidation if net code increase without new behavior
+   - `Grep` for debug logging, typing issues, duplications
+   - Recommend consolidation if net code increase detected
 
 ---
 
-## 3. Verification
+## 3. Workflow & Deployment Safety
 
-1. Run the full test suite:
-   ```bash
-   cd claude-usage-systray && xcodebuild test -project ClaudeUsageSystray.xcodeproj \
-     -scheme ClaudeUsageSystrayTests -destination 'platform=macOS' \
-     CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
-   ```
-2. If the change is user-visible (menu bar text, popover, notifications), build and run the app to confirm:
-   ```bash
-   cd claude-usage-systray && xcodebuild -scheme ClaudeUsageSystray -configuration Debug build
-   ```
+1. **Deployment readiness check**
+   - Run appropriate linting/testing commands based on repo
+   - Prepare rollback commands with current commit hash
 
 ---
 
-## 4. Update Documentation
+## 4. Update markdown documentation thoroughly
 
-1. Compare actual final code logic with `README.md` and `CLAUDE.md`
-   - Delete irrelevant context
+1. **Compare actual final code logic with README/doc contexts**
+   - Delete irrelevant contexts
    - Add the minimum relevant context
 
 ---
@@ -56,5 +53,15 @@ description: Review current session's changes - validate, optimize, document
 
 Provide specific recommendations based on:
 - Code complexity changes (optimization opportunities)
-- Test results (paste the pass/fail summary — evidence before claims)
-- Doc drift found and fixed
+- Production-safety requirements (staging vs direct deployment)
+- Architecture compliance (project patterns)
+
+---
+
+**Tool Priority Order:**
+
+1. Git/GitHub CLI for change detection in current session ONLY
+2. DB MCP for data validation (if configured)
+3. Grep/search for code pattern analysis
+4. Bash for workflow enforcement
+5. Structured output for cross-agent compatibility
